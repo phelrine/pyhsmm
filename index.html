@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+    <meta charset='utf-8' />
+    <meta http-equiv="X-UA-Compatible" content="chrome=1" />
+    <meta name="description" content="pyhsmm : a python library for Bayesian inference in (HDP-)H(S)MMs" />
+
+    <link rel="stylesheet" type="text/css" media="screen" href="stylesheets/stylesheet.css">
+
+    <title>pyhsmm</title>
+  </head>
+
+  <body>
+
+    <!-- HEADER -->
+    <div id="header_wrap" class="outer">
+        <header class="inner">
+          <a id="forkme_banner" href="https://github.com/mattjj/pyhsmm">View on GitHub</a>
+
+          <h1 id="project_title">pyhsmm</h1>
+          <h2 id="project_tagline">a python library for Bayesian inference in (HDP-)H(S)MMs</h2>
+
+            <section id="downloads">
+              <a class="zip_download_link" href="https://github.com/mattjj/pyhsmm/zipball/master">Download this project as a .zip file</a>
+              <a class="tar_download_link" href="https://github.com/mattjj/pyhsmm/tarball/master">Download this project as a tar.gz file</a>
+            </section>
+        </header>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div id="main_content_wrap" class="outer">
+      <section id="main_content" class="inner">
+        <h1>Sampling Inference for Bayesian HSMMs and HMMs</h1>
+
+<p><code>pyhsmm</code> is a Python library for approximate unsupervised sampling inference in
+Bayesian Hidden Markov Models (HMMs) and explicit-duration Hidden semi-Markov
+Models (HSMMs), focusing on the Bayesian Nonparametric extensions, the HDP-HMM
+and HDP-HSMM, via the weak-limit approximation.</p>
+
+
+
+<h2>Installing</h2>
+
+<p>You can clone this library with the usual command:</p>
+
+<pre><code>git clone git://github.com/mattjj/pyhsmm.git
+</code></pre>
+
+<p>The library depends on <code>numpy</code>, <code>scipy</code>, and, for visualization, <code>matplotlib</code>.</p>
+
+<p>There is an optional dependency on the <a href="http://eigen.tuxfamily.org/index.php?title=Main_Page">Eigen C++ Template
+Library</a> installed in the
+usual location of <code>/usr/local/include</code> (its default install location), which
+can make the inference run much faster in many cases (and only a bit faster in
+others). If you install Eigen, you can enable its use by calling
+<code>pyhsmm.use_eigen()</code> after importing <code>pyhsmm</code>.</p>
+
+<h2>A Simple Demonstration</h2>
+
+<p>Here's how to draw from the HDP-HSMM posterior over HSMMs given a sequence of
+observations. (The same example, along with the code to generate the synthetic
+data loaded in this example, can be found in <code>examples/basic.py</code>.)</p>
+
+<p>Let's say we have some 2D data in a data.txt file:</p>
+
+<div class="highlight">
+<pre><span class="nv">$ </span>head -n 5 data.txt
+1.954325679401778038e+00 -2.556951835061773703e+00
+5.112035450336103182e+00 -1.140375513299447086e+01
+3.746172989570439871e-01 1.437014805219438696e+00
+2.665840201248884433e+00 -6.032284411998907636e+00
+1.434245756651063797e+00 -3.241457044646912422e+00
+</pre>
+</div>
+
+
+<p>In Python, we can plot the data in a 2D plot, collapsing out the time dimension:</p>
+
+<div class="highlight">
+<pre><span class="kn">import</span> <span class="nn">numpy</span> <span class="kn">as</span> <span class="nn">np</span>
+<span class="kn">from</span> <span class="nn">matplotlib</span> <span class="kn">import</span> <span class="n">pyplot</span> <span class="k">as</span> <span class="n">plt</span>
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">loadtxt</span><span class="p">(</span><span class="s">'data.txt'</span><span class="p">)</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">data</span><span class="p">[:,</span><span class="mi">0</span><span class="p">],</span><span class="n">data</span><span class="p">[:,</span><span class="mi">1</span><span class="p">],</span><span class="s">'kx'</span><span class="p">)</span>
+</pre>
+</div>
+
+
+<p><img src="http://www.mit.edu/%7Emattjj/github/pyhsmm2/data.png" alt="2D data"></p>
+
+<p>We can also make a plot of time versus the first principal component:</p>
+
+<div class="highlight">
+<pre><span class="kn">from</span> <span class="nn">pyhsmm.util.plot</span> <span class="kn">import</span> <span class="n">pca_project_data</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">plot</span><span class="p">(</span><span class="n">pca_project_data</span><span class="p">(</span><span class="n">data</span><span class="p">,</span><span class="mi">1</span><span class="p">))</span>
+</pre>
+</div>
+
+
+<p><img src="http://www.mit.edu/%7Emattjj/github/pyhsmm2/data_vs_time.png" alt="Data first principal component vs time"></p>
+
+<p>To learn an HSMM, we'll use <code>pyhsmm</code> to create an hsmm object using some
+reasonable hyperparameters. We'll ask this model to infer the number of states
+as well (since an HDP-HSMM is instantiated by default), so we'll give it an
+<code>Nmax</code> parameter:</p>
+
+<div class="highlight">
+<pre><span class="kn">import</span> <span class="nn">pyhsmm</span>
+
+<span class="n">obs_dim</span> <span class="o">=</span> <span class="mi">2</span>
+<span class="n">Nmax</span> <span class="o">=</span> <span class="mi">10</span>
+
+<span class="n">obs_hypparams</span> <span class="o">=</span> <span class="p">{</span><span class="s">'mu_0'</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="n">obs_dim</span><span class="p">),</span>
+                <span class="s">'lmbda_0'</span><span class="p">:</span><span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">obs_dim</span><span class="p">),</span>
+                <span class="s">'kappa_0'</span><span class="p">:</span><span class="mf">0.2</span><span class="p">,</span>
+                <span class="s">'nu_0'</span><span class="p">:</span><span class="n">obs_dim</span><span class="o">+</span><span class="mi">2</span><span class="p">}</span>
+<span class="n">dur_hypparams</span> <span class="o">=</span> <span class="p">{</span><span class="s">'k'</span><span class="p">:</span><span class="mi">8</span><span class="p">,</span>
+                <span class="s">'theta'</span><span class="p">:</span><span class="mi">5</span><span class="p">}</span>
+
+<span class="n">obs_distns</span> <span class="o">=</span> <span class="p">[</span><span class="n">pyhsmm</span><span class="o">.</span><span class="n">observations</span><span class="o">.</span><span class="n">gaussian</span><span class="p">(</span><span class="o">**</span><span class="n">obs_hypparams</span><span class="p">)</span> <span class="k">for</span> <span class="n">state</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">Nmax</span><span class="p">)]</span>
+<span class="n">dur_distns</span> <span class="o">=</span> <span class="p">[</span><span class="n">pyhsmm</span><span class="o">.</span><span class="n">durations</span><span class="o">.</span><span class="n">poisson</span><span class="p">(</span><span class="o">**</span><span class="n">dur_hypparams</span><span class="p">)</span> <span class="k">for</span> <span class="n">state</span> <span class="ow">in</span> <span class="nb">xrange</span><span class="p">(</span><span class="n">Nmax</span><span class="p">)]</span>
+
+<span class="n">posteriormodel</span> <span class="o">=</span> <span class="n">pyhsmm</span><span class="o">.</span><span class="n">hsmm</span><span class="p">(</span><span class="mf">6.</span><span class="p">,</span><span class="mf">6.</span><span class="p">,</span><span class="n">obs_distns</span><span class="p">,</span><span class="n">dur_distns</span><span class="p">,</span><span class="n">trunc</span><span class="o">=</span><span class="mi">75</span><span class="p">)</span>
+</pre>
+</div>
+
+
+<p>(The first two arguments set the "new-table" proportionality constant for the
+meta-Chinese Restaurant Process and the other CRPs, respectively, in the HDP
+prior on transition matrices. For this example, they really don't matter at
+all: pretty much any values will work; those parameters only matter in
+very-low-evidence settings.)</p>
+
+<p>The <code>trunc</code> parameter is an optional argument that can speed up inference: it
+sets a truncation limit on the maximum duration for any state. If you don't
+pass in the <code>trunc</code> argument, no truncation is used and all possible state
+duration lengths are considered.</p>
+
+<p>Then, we add the data we want to condition on:</p>
+
+<div class="highlight">
+<pre><span class="n">posteriormodel</span><span class="o">.</span><span class="n">add_data</span><span class="p">(</span><span class="n">data</span><span class="p">)</span>
+</pre>
+</div>
+
+
+<p>(If we had multiple observation sequences to learn from, we could add them to the
+model just by calling <code>add_data()</code> for each observation sequence.)</p>
+
+<p>Now we run a resampling loop. For each iteration of the loop, all the latent
+variables of the model will be resampled by Gibbs sampling steps, including the
+transition matrix, the observation means and covariances, the duration
+parameters, and the hidden state sequence. We'll plot the samples every few
+iterations.</p>
+
+<div class="highlight">
+<pre><span class="n">plot_every</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="k">for</span> <span class="n">idx</span> <span class="ow">in</span> <span class="n">progprint_xrange</span><span class="p">(</span><span class="mi">101</span><span class="p">):</span>
+    <span class="k">if</span> <span class="p">(</span><span class="n">idx</span> <span class="o">%</span> <span class="n">plot_every</span><span class="p">)</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+        <span class="n">posteriormodel</span><span class="o">.</span><span class="n">plot</span><span class="p">()</span>
+        <span class="n">plt</span><span class="o">.</span><span class="n">gcf</span><span class="p">()</span><span class="o">.</span><span class="n">suptitle</span><span class="p">(</span><span class="s">'inferred HSMM after </span><span class="si">%d</span><span class="s"> iterations (arbitrary colors)'</span> <span class="o">%</span> <span class="n">idx</span><span class="p">)</span>
+
+    <span class="n">posteriormodel</span><span class="o">.</span><span class="n">resample</span><span class="p">()</span>
+</pre>
+</div>
+
+
+<p><img src="http://www.mit.edu/%7Emattjj/github/pyhsmm2/posterior_animation.gif" alt="Sampled models"></p>
+
+<p>I generated these data from an HSMM that looked like this:</p>
+
+<p><img src="http://www.mit.edu/%7Emattjj/github/pyhsmm2/truth.png" alt="Randomly-generated model and data"></p>
+
+<p>So the posterior samples look pretty good!</p>
+
+<p>In fact, if you'd like to visualize why this example data isn't so tough for an HSMM to
+decode, you can explore the 3D plot and see the strong time regularity with</p>
+
+<div class="highlight">
+<pre><span class="kn">from</span> <span class="nn">mpl_toolkits.mplot3d</span> <span class="kn">import</span> <span class="n">Axes3D</span>
+<span class="n">fig</span> <span class="o">=</span> <span class="n">plt</span><span class="o">.</span><span class="n">figure</span><span class="p">()</span>
+<span class="n">ax</span> <span class="o">=</span> <span class="n">fig</span><span class="o">.</span><span class="n">add_subplot</span><span class="p">(</span><span class="mi">111</span><span class="p">,</span><span class="n">projection</span><span class="o">=</span><span class="s">'3d'</span><span class="p">)</span>
+<span class="n">ax</span><span class="o">.</span><span class="n">scatter</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">arange</span><span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">data</span><span class="p">)),</span><span class="n">data</span><span class="p">[:,</span><span class="mi">0</span><span class="p">],</span><span class="n">data</span><span class="p">[:,</span><span class="mi">1</span><span class="p">])</span>
+<span class="n">plt</span><span class="o">.</span><span class="n">show</span><span class="p">()</span>
+</pre>
+</div>
+
+
+<h2>Speed</h2>
+
+<p>HSMMs constitute a much more powerful model class than plain-old HMMs, and that
+enhanced power comes with a computational price: each sampling iteration for an
+HSMM is much slower than that of an HMM. But that price is often worthwhile if
+you want to place priors on state durations or have the model learn duration
+structure present in the data. (In the example, strong duration structure is
+what made the inference algorithm latch onto the correct explanation so
+easily.) In addition, the increased cost of each iteration often pays for
+itself, since HSMM samplers empirically seem to take fewer iterations to
+converge than comparable HMM samplers.</p>
+
+<p>Using my nothing-special i7-920 desktop machine and a NumPy/SciPy built against
+Intel's MKL BLAS (which generally outperforms ATLAS for vectorized operations)
+along with <code>pyhsmm.use_eigen()</code>, here's how long the demo iterations took:</p>
+
+<pre><code>$ python -m pyhsmm.examples.basic
+.........................  [  25/101,    0.05sec avg,    3.95sec ETA ]
+.........................  [  50/101,    0.05sec avg,    2.64sec ETA ]
+.........................  [  75/101,    0.05sec avg,    1.34sec ETA ]
+.........................  [ 100/101,    0.05sec avg,    0.05sec ETA ]
+.
+   0.05sec avg,    5.21sec total
+</code></pre>
+
+<h2>Extending the Code</h2>
+
+<p>To add your own observation or duration distributions, implement the interfaces
+defined in <code>abstractions.py</code>.</p>
+
+<h2>Contributors</h2>
+
+<p>Contributions by Chia-ying Lee.</p>
+
+<h2>References</h2>
+
+<ul>
+<li><p>Matthew J. Johnson and Alan S. Willsky, <a href="http://arxiv.org/abs/1203.1365">Bayesian Nonparametric Hidden
+Semi-Markov Models</a>. arXiv:1203.1365v1</p></li>
+<li><p>Matthew J. Johnson and Alan S. Willsky, <a href="http://www.mit.edu/%7Emattjj/papers/uai2010.pdf">The Hierarchical Dirichlet Process
+Hidden Semi-Markov Model</a>. 26th
+Conference on Uncertainty in Artificial Intelligence (UAI 2010), Avalon,
+California, July 2010.</p></li>
+</ul>
+      </section>
+    </div>
+
+    <!-- FOOTER  -->
+    <div id="footer_wrap" class="outer">
+      <footer class="inner">
+        <p class="copyright">pyhsmm maintained by <a href="https://github.com/mattjj">mattjj</a></p>
+        <p>Published with <a href="http://pages.github.com">GitHub Pages</a></p>
+      </footer>
+    </div>
+
+              <script type="text/javascript">
+            var gaJsHost = (("https:" == document.location.protocol) ? "https://ssl." : "http://www.");
+            document.write(unescape("%3Cscript src='" + gaJsHost + "google-analytics.com/ga.js' type='text/javascript'%3E%3C/script%3E"));
+          </script>
+          <script type="text/javascript">
+            try {
+              var pageTracker = _gat._getTracker("UA-30545037-1");
+            pageTracker._trackPageview();
+            } catch(err) {}
+          </script>
+
+
+  </body>
+</html>
