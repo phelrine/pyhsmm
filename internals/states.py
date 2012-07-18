@@ -8,6 +8,7 @@ from pyhsmm.util.stats import sample_discrete
 from pyhsmm.util import general as util # perhaps a confusing name :P
 
 import os
+from subprocess import Popen, PIPE
 
 class hsmm_states_python(object):
     '''
@@ -284,7 +285,7 @@ class hsmm_states_eigen(hsmm_states_python):
         for state_idx, dur_distn in enumerate(self.dur_distns):
             apmf[state_idx] = dur_distn.pmf(arg)
 
-        scipy.weave.inline(self.sample_forwards_codestr,['betal','betastarl','aBl','stateseq','A','pi0','apmf'],headers=['<Eigen/Core>'],include_dirs=['/usr/local/include/eigen3'],extra_compile_args=['-O3'])#,'-march=native'])
+        scipy.weave.inline(self.sample_forwards_codestr,['betal','betastarl','aBl','stateseq','A','pi0','apmf'],headers=['<Eigen/Core>'],include_dirs=[eigen_include_dir],extra_compile_args=['-O3'])#,'-march=native'])
 
         self.stateseq_norep, self.durations = util.rle(stateseq)
         self.stateseq = stateseq
@@ -297,7 +298,7 @@ class hsmm_states_eigen(hsmm_states_python):
         aBl = self.aBl
         betal = np.zeros((self.T,self.state_dim))
         betastarl = np.zeros((self.T,self.state_dim))
-        scipy.weave.inline(self.messages_backwards_codestr,['A','mytrunc','betal','betastarl','aDl','aBl','aDsl'],headers=['<Eigen/Core>','<limits>'],include_dirs=['/usr/local/include/eigen3'],extra_compile_args=['-O3','-march=native'])
+        scipy.weave.inline(self.messages_backwards_codestr,['A','mytrunc','betal','betastarl','aDl','aBl','aDsl'],headers=['<Eigen/Core>','<limits>'],include_dirs=[eigen_include_dir],extra_compile_args=['-O3','-march=native'])
         return betal, betastarl
 
     # TODO could also write Eigen version of the generate() methods
@@ -442,7 +443,7 @@ class hmm_states_eigen(hmm_states_python):
         AT = self.transition_distn.A.T.copy()
         betal = np.zeros((self.T,self.state_dim))
 
-        scipy.weave.inline(self.messages_backwards_codestr,['AT','betal','aBl','T'],headers=['<Eigen/Core>'],include_dirs=['/usr/local/include/eigen3'],extra_compile_args=['-O3'])
+        scipy.weave.inline(self.messages_backwards_codestr,['AT','betal','aBl','T'],headers=['<Eigen/Core>'],include_dirs=[eigen_include_dir],extra_compile_args=['-O3'])
 
         return betal
 
@@ -453,7 +454,7 @@ class hmm_states_eigen(hmm_states_python):
 
         stateseq = np.zeros(T,dtype=np.int32)
 
-        scipy.weave.inline(self.sample_forwards_codestr,['A','T','pi0','stateseq','aBl','betal'],headers=['<Eigen/Core>','<limits>'],include_dirs=['/usr/local/include/eigen3'],extra_compile_args=['-O3'])
+        scipy.weave.inline(self.sample_forwards_codestr,['A','T','pi0','stateseq','aBl','betal'],headers=['<Eigen/Core>','<limits>'],include_dirs=[eigen_include_dir],extra_compile_args=['-O3'])
 
         self.stateseq = stateseq
 
@@ -468,6 +469,11 @@ with open(os.path.join(eigen_code_dir,'hmm_messages_backwards.cpp')) as infile:
 with open(os.path.join(eigen_code_dir,'hmm_sample_forwards.cpp')) as infile:
     hmm_sample_forwards_codestr = infile.read()
 
+try:
+    eigen_include_dir = Popen(['pkg-config', 'eigen3', '--cflags'], stdout = PIPE).communicate()[0].rstrip()[2:]
+except:
+    eigen_include_dir = '/usr/local/include/eigen3'
+
 def use_eigen(useit=True):
     global hsmm_states, hmm_states
     if useit:
@@ -476,4 +482,3 @@ def use_eigen(useit=True):
     else:
         hsmm_states = hsmm_states_python
         hmm_states = hmm_states_python
-
