@@ -171,7 +171,7 @@ class gaussian(ObservationBase):
         assert len(set([len(o.mu) for o in instance_list])) == 1, 'must have consistent dimensions across instances'
         dim = len(instance_list[0].mu)
         if dim > 2:
-            vecs = np.random.randn((dim,2))
+            vecs = np.random.randn(dim,2)
             vecs /= np.sqrt((vecs**2).sum())
         else:
             vecs = np.eye(2)
